@@ -13,6 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import cv2
 import numpy as np
 import logging
+from PIL import Image
+from io import BytesIO
+import base64
 
 app = FastAPI()
 # does this have to be app? its syntax
@@ -236,48 +239,58 @@ manager = ConnectionManager()
 
 # --------------------------------------------------------------------------------------------------------
 
-@app.websocket("/api/ws/video")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            try:
-                data = await websocket.receive_bytes()
-                frame_size = len(data)
-                logging.info(f"Received frame of size: {frame_size} bytes")
-                
-                # Send confirmation back to client
-                response_message = f"Frame received: {frame_size} bytes"
-                await websocket.send_text(response_message)
-                
-                # Broadcast frame to other clients if needed
-                # await manager.broadcast(data)
-                
-            except Exception as e:
-                logging.error(f"Error processing frame: {str(e)}")
-                break
-                
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-        logging.info("Client disconnected due to WebSocket disconnect")
-    except Exception as e:
-        logging.error(f"Unexpected error: {str(e)}")
-        manager.disconnect(websocket)
-
 # @app.websocket("/api/ws/video")
 # async def websocket_endpoint(websocket: WebSocket):
 #     await manager.connect(websocket)
 #     try:
 #         while True:
-            
-#             data = await websocket.receive_bytes()
-#             logging.info(f"Received frame of size: {len(data)} bytes")
-#             response_message = f"Frame received: {len(data)} bytes"
-#             await websocket.send_text(response_message)
-#             # logging.info(f"Sent message: {response_message}") 
-
+#             try:
+#                 data = await websocket.receive_bytes()
+#                 frame_size = len(data)
+#                 logging.info(f"Received frame of size: {frame_size} bytes")
+                
+#                 # Send confirmation back to client
+#                 response_message = f"Frame received: {frame_size} bytes"
+#                 await websocket.send_text(response_message)
+                
+#                 # Broadcast frame to other clients if needed
+#                 # await manager.broadcast(data)
+                
+#             except Exception as e:
+#                 logging.error(f"Error processing frame: {str(e)}")
+#                 break
+                
 #     except WebSocketDisconnect:
 #         manager.disconnect(websocket)
-#         print("Client disconnected")
+#         logging.info("Client disconnected due to WebSocket disconnect")
+#     except Exception as e:
+#         logging.error(f"Unexpected error: {str(e)}")
+#         manager.disconnect(websocket)
+
+@app.websocket("/api/ws/video")
+async def video_stream(websocket: WebSocket):
+    await websocket.accept()
+    print("WebSocket connection opened")
+
+    try:
+        while True:
+            # Receive the base64 encoded image data
+            data = await websocket.receive_text()
+            print("Received image data")
+
+            # Decode the image from base64 string
+            image_data = base64.b64decode(data)
+
+            # Convert the binary image data to a Pillow Image object
+            image = Image.open(BytesIO(image_data))
+
+            # Optionally, save the image or process it
+            # image.save("received_image.jpg")  # Save to disk for debugging
+
+            # Send an acknowledgment message back to the client
+            await websocket.send_text("Image received and processed")
+
+    except WebSocketDisconnect:
+        print("WebSocket connection closed")
 
 # --------------------------------------------------------------------------------------------------------
